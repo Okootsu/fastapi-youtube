@@ -1,8 +1,8 @@
 import yt_dlp
 import os
-import tempfile
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
+from io import BytesIO
 
 app = FastAPI()
 
@@ -10,17 +10,16 @@ app = FastAPI()
 def read_root():
     return {"message": "Bienvenido a la API de Descarga de Videos de Youtube"}
 
+# Almacenar cookies en memoria
+cookie_storage = None
+
 @app.post("/upload_cookies/")
 async def upload_cookies(cookies_file: UploadFile = File(...)):
-    # Crear un directorio para almacenar cookies si no existe
-    os.makedirs("cookies", exist_ok=True)
+    global cookie_storage
+    # Leer el archivo de cookies y almacenarlo en memoria
+    cookie_storage = await cookies_file.read()
     
-    # Crear un archivo permanente para las cookies
-    file_path = os.path.join("cookies", cookies_file.filename)
-    with open(file_path, "wb") as f:
-        f.write(await cookies_file.read())
-    
-    return {"cookie_file": file_path}
+    return {"message": "Cookies almacenadas en memoria"}
 
 @app.get("/info_video/")
 def info_video(video_url: str):
@@ -40,22 +39,28 @@ def info_video(video_url: str):
     }
 
 @app.get("/download/")
-async def download_video(video_url: str, cookie_file: str):
+async def download_video(video_url: str):
+    if cookie_storage is None:
+        raise HTTPException(status_code=400, detail="No se han subido cookies")
+
     download_folder = "downloads/"
     os.makedirs(download_folder, exist_ok=True)
 
-    ydl_opts = {
-        'format': 'bestaudio[ext=m4a][abr<=128]',
-        'outtmpl': download_folder + '%(title)s.%(ext)s',
-        'cookies': cookie_file
-    }
+    # Guardar las cookies en un archivo temporal en memoria
+    with BytesIO(cookie_storage) as cookie_file:
+        ydl_opts = {
+            'format': 'bestaudio[ext=m4a][abr<=128]',
+            'outtmpl': download_folder + '%(title)s.%(ext)s',
+            'cookies': cookie_file  # Usar el flujo de bytes
+        }
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([video_url])
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Error al descargar el video: " + str(e))
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([video_url])
+        except Exception as e:
+            raise HTTPException(status_code=500, detail="Error al descargar el video: " + str(e))
 
+    # Obtener información del video
     info_dict = ydl.extract_info(video_url, download=False)
     file_name = f"{info_dict.get('title')}.m4a"
     file_path = os.path.join(download_folder, file_name)
