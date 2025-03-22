@@ -43,6 +43,9 @@ async def download_video(video_url: str):
         'format': 'bestaudio[ext=m4a][abr<=128]',
         'outtmpl': download_folder + '%(title)s.%(ext)s',
         'cookies': cookie_file,  # Usar el archivo temporal de cookies
+        'http_headers': {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.85 Safari/537.36',
+    }
         'verbose': True,  # Para obtener más detalles sobre el proceso
     }
 
