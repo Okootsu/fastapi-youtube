@@ -6,20 +6,28 @@ from fastapi.responses import FileResponse
 
 app = FastAPI()
 
+# Variable global para almacenar la ruta del archivo de cookies
+cookie_file = None
+
 @app.post("/upload_cookies/")
 async def upload_cookies(cookies_file: UploadFile = File(...)):
+    global cookie_file  # Usar la variable global
     # Leer el archivo de cookies y almacenarlo en un archivo temporal
     cookie_storage = await cookies_file.read()
     temp_cookie_file = tempfile.NamedTemporaryFile(delete=False, suffix=".txt")
     temp_cookie_file.write(cookie_storage)
     temp_cookie_file.close()  # Cerrar el archivo para que yt-dlp pueda leerlo
 
-    return {"cookie_file": temp_cookie_file.name}  # Retorna la ruta del archivo temporal
+    cookie_file = temp_cookie_file.name  # Guardar la ruta del archivo temporal
+
+    return {"cookie_file": cookie_file}  # Retorna la ruta del archivo temporal
 
 @app.get("/download/")
 async def download_video(video_url: str):
+    global cookie_file  # Usar la variable global
+
     # Verifica que el archivo de cookies existe
-    if not os.path.exists(cookie_file):
+    if not cookie_file or not os.path.exists(cookie_file):
         raise HTTPException(status_code=400, detail="No se han subido cookies")
 
     download_folder = "downloads/"
