@@ -33,32 +33,40 @@ def info_video(video_url: str):
 
 @app.get("/download/")
 async def download_video(video_url: str, cookies_file: UploadFile = File(None)):
-    if not cookies_file:
-        raise HTTPException(status_code=400, detail="Se requiere un archivo de cookies para la autenticación.")
-
     download_folder = "downloads/"
     
-    # Crear un archivo temporal para las cookies
-    with tempfile.NamedTemporaryFile(delete=True) as temp_cookie_file:
-        temp_cookie_file.write(await cookies_file.read())
-        temp_cookie_file.flush()  # Asegurarse de que los datos estén escritos
+    # Opciones de configuración para filtrar y descargar formatos específicos
+    ydl_opts = {
+        'format': 'bestaudio[ext=m4a][abr<=128]',  # Filtrar por m4a y bitrate medio (<=128 kbps)
+        'outtmpl': download_folder + '%(title)s.%(ext)s',  # Nombre del archivo como el título del video
+    }
 
-        # Opciones de configuración para filtrar y descargar formatos específicos
-        ydl_opts = {
-            'format': 'bestaudio[ext=m4a][abr<=128]',  # Filtrar por m4a y bitrate medio (<=128 kbps)
-            'outtmpl': download_folder + '%(title)s.%(ext)s',  # Nombre del archivo como el título del video
-            'cookies': temp_cookie_file.name  # Usar el archivo temporal de cookies
-        }
-
-        # Descargar el audio
+    # Intentar descargar el audio sin cookies primero
+    try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])
+    except Exception as e:
+        # Si falla, verificar si se proporcionó un archivo de cookies
+        if not cookies_file:
+            raise HTTPException(status_code=400, detail="Se requiere un archivo de cookies para la autenticación. Por favor, sube el archivo de cookies.")
+        
+        # Crear un archivo temporal para las cookies
+        with tempfile.NamedTemporaryFile(delete=True) as temp_cookie_file:
+            temp_cookie_file.write(await cookies_file.read())
+            temp_cookie_file.flush()  # Asegurarse de que los datos estén escritos
 
-        # Obtener información del video
-        info_dict = ydl.extract_info(video_url, download=False)  # download=False para no descargar
+            # Agregar el archivo temporal de cookies a las opciones
+            ydl_opts['cookies'] = temp_cookie_file.name
+            
+            # Intentar descargar nuevamente con las cookies
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([video_url])
 
-        # Extraer información relevante
-        file_name = f"{info_dict.get('title')}.m4a"
-        file_path = os.path.join(download_folder, file_name)
+    # Obtener información del video
+    info_dict = ydl.extract_info(video_url, download=False)  # download=False para no descargar
+
+    # Extraer información relevante
+    file_name = f"{info_dict.get('title')}.m4a"
+    file_path = os.path.join(download_folder, file_name)
 
     return FileResponse(file_path, media_type='application/octet-stream', filename=file_name)
