@@ -41,7 +41,8 @@ async def download_video(video_url: str):
     ydl_opts = {
         'format': 'bestaudio[ext=m4a][abr<=128]',
         'outtmpl': download_folder + '%(title)s.%(ext)s',
-        'cookies': cookie_file  # Usar el archivo temporal de cookies
+        'cookies': cookie_file,  # Usar el archivo temporal de cookies
+        'verbose': True,  # Para obtener más detalles sobre el proceso
     }
 
     try:
