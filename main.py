@@ -20,7 +20,12 @@ async def upload_cookies(cookies_file: UploadFile = File(...)):
 
     cookie_file = temp_cookie_file.name  # Guardar la ruta del archivo temporal
 
+    # Imprimir el contenido del archivo de cookies para depuración
+    with open(cookie_file, 'r') as f:
+        print(f.read())  # Muestra el contenido del archivo de cookies
+
     return {"cookie_file": cookie_file}  # Retorna la ruta del archivo temporal
+
 
 @app.get("/download/")
 async def download_video(video_url: str):
