@@ -1,64 +1,41 @@
 import yt_dlp
 import os
+import tempfile
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
-from io import BytesIO
 
 app = FastAPI()
 
-@app.get("/")
-def read_root():
-    return {"message": "Bienvenido a la API de Descarga de Videos de Youtube"}
-
-# Almacenar cookies en memoria
-cookie_storage = None
-
 @app.post("/upload_cookies/")
 async def upload_cookies(cookies_file: UploadFile = File(...)):
-    global cookie_storage
-    # Leer el archivo de cookies y almacenarlo en memoria
+    # Leer el archivo de cookies y almacenarlo en un archivo temporal
     cookie_storage = await cookies_file.read()
-    
-    return {"message": "Cookies almacenadas en memoria"}
+    temp_cookie_file = tempfile.NamedTemporaryFile(delete=False, suffix=".txt")
+    temp_cookie_file.write(cookie_storage)
+    temp_cookie_file.close()  # Cerrar el archivo para que yt-dlp pueda leerlo
 
-@app.get("/info_video/")
-def info_video(video_url: str):
-    ydl_opts = {
-        'format': 'bestaudio[ext=m4a][abr<=128]'
-    }
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info_dict = ydl.extract_info(video_url, download=False)
-
-    title = info_dict.get('title', 'Título no disponible')
-    author = info_dict.get('uploader', 'Autor no disponible')
-        
-    return {
-        "titulo_video": title,
-        "autor_video": author,
-    }
+    return {"cookie_file": temp_cookie_file.name}  # Retorna la ruta del archivo temporal
 
 @app.get("/download/")
 async def download_video(video_url: str):
-    if cookie_storage is None:
+    # Verifica que el archivo de cookies existe
+    if not os.path.exists(cookie_file):
         raise HTTPException(status_code=400, detail="No se han subido cookies")
 
     download_folder = "downloads/"
     os.makedirs(download_folder, exist_ok=True)
 
-    # Guardar las cookies en un archivo temporal en memoria
-    with BytesIO(cookie_storage) as cookie_file:
-        ydl_opts = {
-            'format': 'bestaudio[ext=m4a][abr<=128]',
-            'outtmpl': download_folder + '%(title)s.%(ext)s',
-            'cookies': cookie_file  # Usar el flujo de bytes
-        }
+    ydl_opts = {
+        'format': 'bestaudio[ext=m4a][abr<=128]',
+        'outtmpl': download_folder + '%(title)s.%(ext)s',
+        'cookies': cookie_file  # Usar el archivo temporal de cookies
+    }
 
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([video_url])
-        except Exception as e:
-            raise HTTPException(status_code=500, detail="Error al descargar el video: " + str(e))
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([video_url])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Error al descargar el video: " + str(e))
 
     # Obtener información del video
     info_dict = ydl.extract_info(video_url, download=False)
