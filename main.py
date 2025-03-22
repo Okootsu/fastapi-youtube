@@ -1,6 +1,7 @@
 import yt_dlp
 import os
-from fastapi import FastAPI, UploadFile, File
+import tempfile
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 
 app = FastAPI()
@@ -31,31 +32,33 @@ def info_video(video_url: str):
     }
 
 @app.get("/download/")
-def download_video(video_url: str, cookies_file: UploadFile = File(None)):
+async def download_video(video_url: str, cookies_file: UploadFile = File(None)):
+    if not cookies_file:
+        raise HTTPException(status_code=400, detail="Se requiere un archivo de cookies para la autenticación.")
+
     download_folder = "downloads/"
     
-    # Opciones de configuración para filtrar y descargar formatos específicos
-    ydl_opts = {
-        'format': 'bestaudio[ext=m4a][abr<=128]',  # Filtrar por m4a y bitrate medio (<=128 kbps)
-        'outtmpl': download_folder + '%(title)s.%(ext)s',  # Nombre del archivo como el título del video
-    }
+    # Crear un archivo temporal para las cookies
+    with tempfile.NamedTemporaryFile(delete=True) as temp_cookie_file:
+        temp_cookie_file.write(await cookies_file.read())
+        temp_cookie_file.flush()  # Asegurarse de que los datos estén escritos
 
-    # Si se proporciona un archivo de cookies, agregarlo a las opciones
-    if cookies_file:
-        cookies_path = os.path.join(download_folder, cookies_file.filename)
-        with open(cookies_path, 'wb') as f:
-            f.write(cookies_file.file.read())
-        ydl_opts['cookies'] = cookies_path
+        # Opciones de configuración para filtrar y descargar formatos específicos
+        ydl_opts = {
+            'format': 'bestaudio[ext=m4a][abr<=128]',  # Filtrar por m4a y bitrate medio (<=128 kbps)
+            'outtmpl': download_folder + '%(title)s.%(ext)s',  # Nombre del archivo como el título del video
+            'cookies': temp_cookie_file.name  # Usar el archivo temporal de cookies
+        }
 
-    # Descargar el audio
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([video_url])
+        # Descargar el audio
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([video_url])
 
-    # Obtener información del video
-    info_dict = ydl.extract_info(video_url, download=False)  # download=False para no descargar
+        # Obtener información del video
+        info_dict = ydl.extract_info(video_url, download=False)  # download=False para no descargar
 
-    # Extraer información relevante
-    file_name = f"{info_dict.get('title')}.m4a"
-    file_path = os.path.join(download_folder, file_name)
+        # Extraer información relevante
+        file_name = f"{info_dict.get('title')}.m4a"
+        file_path = os.path.join(download_folder, file_name)
 
     return FileResponse(file_path, media_type='application/octet-stream', filename=file_name)
