@@ -9,6 +9,11 @@ app = FastAPI()
 # Variable global para almacenar la ruta del archivo de cookies
 cookie_file = None
 
+@app.get("/")
+def read_root():
+    return {"message": "Bienvenido a la API de Descarga de Videos de Youtube"}
+
+
 @app.post("/upload_cookies/")
 async def upload_cookies(cookies_file: UploadFile = File(...)):
     global cookie_file  # Usar la variable global
