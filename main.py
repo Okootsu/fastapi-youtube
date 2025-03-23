@@ -42,13 +42,18 @@ async def download_video(video_url: str):
     os.makedirs(download_folder, exist_ok=True)
 
     ydl_opts = {
-        'format': 'bestaudio',  # Cambiado a 'bestaudio'
+        'format': 'bestaudio',
         'outtmpl': download_folder + '%(title)s.%(ext)s',
         'cookies': cookie_file,
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.85 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
         },
         'verbose': True,
+        'extractor_args': {
+            'youtube': {
+                'po_token': 'ios.gvs+XXX'  # Reemplaza con el token correcto si lo tienes
+            }
+        }
     }
 
     try:
@@ -68,4 +73,5 @@ async def download_video(video_url: str):
     file_path = os.path.join(download_folder, file_name)
 
     return FileResponse(file_path, media_type='application/octet-stream', filename=file_name)
+
 
