@@ -42,7 +42,7 @@ async def download_video(video_url: str):
     os.makedirs(download_folder, exist_ok=True)
 
     ydl_opts = {
-        'format': 'bestaudio[ext=m4a][abr<=128]',
+        'format': 'bestaudio',  # Cambiado a 'bestaudio'
         'outtmpl': download_folder + '%(title)s.%(ext)s',
         'cookies': cookie_file,
         'http_headers': {
@@ -53,6 +53,9 @@ async def download_video(video_url: str):
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Listar formatos disponibles
+            info_dict = ydl.extract_info(video_url, download=False)
+            print("Formatos disponibles:", info_dict['formats'])  # Imprimir formatos
             ydl.download([video_url])
     except Exception as e:
         print(f"Error al descargar el video: {str(e)}")  # Mensaje de depuración
@@ -61,8 +64,8 @@ async def download_video(video_url: str):
         if os.path.exists(cookie_file):
             os.remove(cookie_file)
 
-    info_dict = ydl.extract_info(video_url, download=False)
     file_name = f"{info_dict.get('title')}.m4a"
     file_path = os.path.join(download_folder, file_name)
 
     return FileResponse(file_path, media_type='application/octet-stream', filename=file_name)
+
